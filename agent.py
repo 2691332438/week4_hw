@@ -12,15 +12,15 @@ load_dotenv()
 #   "google-gla:gemini-2.5-flash"       (needs GOOGLE_API_KEY)
 #   "openai:gpt-4o-mini"                (needs OPENAI_API_KEY)
 #   "anthropic:claude-sonnet-4-6"    (needs ANTHROPIC_API_KEY)
-MODEL = "google-gla:gemini-2.5-flash"
+MODEL = "groq:llama-3.3-70b-versatile"
 
 agent = Agent(
     MODEL,
     system_prompt=(
-        "You are a helpful assistant. Solve each question step by step. "
-        "Use the calculator tool for arithmetic. "
-        "Use the product_lookup tool when a question mentions products from the catalog. "
-        "If a question cannot be answered with the information given, say so."
+    "You are a helpful assistant. Solve each question step by step. "
+    "Use tools to get information. "
+    "IMPORTANT: After calling a tool, always provide a final clear answer in plain text. "
+    "Do not leave the response with a function tag."
     ),
 )
 
@@ -40,13 +40,28 @@ def calculator_tool(expression: str) -> str:
 #   2. If the product_name is in the catalog, return its price as a string
 #   3. If not found, return the list of available product names so the agent
 #      can try again with the correct name
-#
-# @agent.tool_plain
-# def product_lookup(product_name: str) -> str:
-#     """Look up the price of a product by name.
-#     Use this when a question asks about product prices from the catalog.
-#     """
-#     ...
+
+@agent.tool_plain
+def product_lookup(product_name: str) -> str:
+    """Look up the price of a product by name.
+    Use this when a question asks about product prices from the catalog.
+    """
+    try:
+        with open("products.json", "r", encoding="utf-8") as f:
+            catalog = json.load(f)
+        
+        # 假设 products.json 的格式是 {"iPhone": "999", "iPad": "500"}
+        # 如果格式是列表或其他，请根据实际文件微调逻辑
+        if product_name in catalog:
+            return str(catalog[product_name])
+        else:
+            # 如果没找到，返回所有产品名称作为提示
+            available_products = ", ".join(catalog.keys())
+            return f"Product '{product_name}' not found. Available products: {available_products}"
+    except FileNotFoundError:
+        return "Error: products.json file not found."
+    except Exception as e:
+        return f"Error reading product catalog: {str(e)}"
 
 
 def load_questions(path: str = "math_questions.md") -> list[str]:
